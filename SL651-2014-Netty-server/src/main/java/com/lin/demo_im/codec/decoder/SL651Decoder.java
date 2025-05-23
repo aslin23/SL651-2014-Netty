@@ -1,4 +1,4 @@
-package com.lin.demo_im.decoder;
+package com.lin.demo_im.codec.decoder;
 
 import com.lin.demo_im.domain.entity.MessageHeader;
 import com.lin.demo_im.domain.entity.TestReport;

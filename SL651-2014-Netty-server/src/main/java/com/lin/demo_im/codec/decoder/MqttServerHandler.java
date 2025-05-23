@@ -1,4 +1,4 @@
-package com.lin.demo_im.decoder;
+package com.lin.demo_im.codec.decoder;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
