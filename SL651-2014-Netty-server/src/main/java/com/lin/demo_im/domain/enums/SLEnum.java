@@ -1,9 +1,4 @@
-package com.lin.demo_im.SLEnum;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+package com.lin.demo_im.domain.enums;
 
 
 public enum  SLEnum {

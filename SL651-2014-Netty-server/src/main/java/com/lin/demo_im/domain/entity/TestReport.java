@@ -1,11 +1,13 @@
 package com.lin.demo_im.domain.entity;
 
+import com.lin.demo_im.codec.IFuncCodeProvider;
+import com.lin.demo_im.domain.enums.FunctionCode;
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
-public class TestReport {
+public class TestReport implements IFuncCodeProvider {
     private byte[] serialNo;           // 流水号
     private byte[] sendTime;         // 发报时间
     private byte[] telemetryAddr;    // 遥测站地址
@@ -67,5 +69,10 @@ public class TestReport {
             sb.append(String.format("%02X", b & 0xFF));
         }
         return sb.toString();
+    }
+
+    @Override
+    public int getFuncCode() {
+        return FunctionCode.TEST_FUNCTION_CODE.getCode();
     }
 }
