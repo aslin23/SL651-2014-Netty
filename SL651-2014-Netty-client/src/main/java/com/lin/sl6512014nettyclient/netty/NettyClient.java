@@ -19,9 +19,9 @@ public class NettyClient {
 
     private ChannelFuture f;
 
-    public NettyClient(String host, int port) {
-        this.host = host;
-        this.port = port;
+    public NettyClient(String host , int port) {
+        this.host = "127.0.0.1";
+        this.port = 9000;
     }
 
     public void run() throws Exception {
@@ -66,10 +66,5 @@ public class NettyClient {
 
 
 
-    public static void main(String[] args) throws Exception {
-        String host = "127.0.0.1";
-        int port = 8088;
-        new NettyClient(host, port).run();
 
-    }
 }

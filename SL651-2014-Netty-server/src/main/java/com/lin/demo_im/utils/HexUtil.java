@@ -3,13 +3,14 @@ package com.lin.demo_im.utils;
 
 
 
+import javax.websocket.DecodeException;
 import java.util.Locale;
 
 /**
  * @author kerryzhang on 2022/12/23
  */
 
-public  class HexUtil {
+public class HexUtil {
 
     public static String byteArray2HexStr(byte[] bArr) {
         if (bArr == null || bArr.length == 0) {

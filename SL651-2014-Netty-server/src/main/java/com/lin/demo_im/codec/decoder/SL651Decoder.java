@@ -1,13 +1,17 @@
 package com.lin.demo_im.codec.decoder;
 
+import com.lin.demo_im.codec.IFuncCodeProvider;
 import com.lin.demo_im.domain.entity.MessageHeader;
 import com.lin.demo_im.domain.entity.TestReport;
 import com.lin.demo_im.domain.enums.ControlChar;
+import com.lin.demo_im.domain.enums.FunctionCode;
+import com.lin.demo_im.utils.CrcUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +19,19 @@ import java.util.List;
 
 @Component
 @Slf4j
-public class SL651Decoder extends ByteToMessageDecoder {
+public class SL651Decoder extends ByteToMessageDecoder implements IFuncCodeProvider  {
+
+
+
+
+
+    /**
+     * CRC出错时,是否要求重发
+     * false: 表示CRC不正确,也会处理数据
+     * true: CRC不正确,拒绝处理数据,回复NAK,要求客户端重新发送
+     */
+    private boolean crcErrorReSend = false;
+
     @Override
     protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception {
 
@@ -24,10 +40,24 @@ public class SL651Decoder extends ByteToMessageDecoder {
             // 输出接收到的原始数据（十六进制格式）
             log.info("接收到的原始数据: {}", ByteBufUtil.hexDump(byteBuf));
 
-            // 输出接收到的原始数据（字符串格式）
-            log.info("接收到的原始数据(字符串): {}", byteBuf.toString(CharsetUtil.UTF_8));
 
             if (byteBuf.readableBytes() < 10) return; // 确保有足够的数据
+
+
+            ByteBuf in =byteBuf;
+            byteBuf = in.readBytes(in.readableBytes() - 2);
+            int crc16 = in.readShort() & 0xFFFF;
+            boolean correctCrc = crc16 == CrcUtil.calcCrc16(byteBuf);
+
+
+            if (crcErrorReSend && !correctCrc) {
+                // TODO reject message and response NAK
+
+                log.info("校验数据，数据错误");
+                return;
+            }
+
+
 
             byteBuf.markReaderIndex(); //标记当前位置
 
@@ -35,15 +65,6 @@ public class SL651Decoder extends ByteToMessageDecoder {
             byte firstByte = byteBuf.readByte();
             byte secondByte = byteBuf.readByte();
 
-            // 以十六进制字符串形式输出
-            log.info("帧头字节: firstByte=0x{}, secondByte=0x{}",
-                String.format("%02X", firstByte & 0xFF),
-                String.format("%02X", secondByte & 0xFF));
-
-            // 以字符形式输出
-            log.info("帧头字符: firstByte='{}', secondByte='{}'",
-                (char)(firstByte & 0xFF),
-                (char)(secondByte & 0xFF));
 
 
             if (firstByte != 0x7E && secondByte != 0x7E) {
@@ -91,37 +112,11 @@ public class SL651Decoder extends ByteToMessageDecoder {
             //报文起始符
             byte packetStartCode = byteBuf.readByte();
 
-            log.info("报文起始符：{}", String.format("0x%04X", packetStartCode));
-
-
-
-
-            //计算出报文正文的长度
-            // 获取 ByteBuf 可读字节数
-            int length = byteBuf.readableBytes();
-            log.info("数据的长度{}", length);
-
-            // 计算消息体长度（总长度减去固定字段长度）
-            int messageLength = length - 4; // 减去结束符(1字节)和校验码(2字节)的长度，预留1字节安全边界
-
-            // 添加长度检查
-            if (messageLength <= 0) {
-                log.error("计算得到的消息长度无效: {}", messageLength);
-                byteBuf.resetReaderIndex();
-                return;
-            }
-
-            // 确保有足够的数据可读
-            if (byteBuf.readableBytes() < messageLength) {
-                log.error("可读数据长度不足，需要: {}, 实际: {}", messageLength, byteBuf.readableBytes());
-                byteBuf.resetReaderIndex();
-                return;
-            }
 
 
              boolean isM3Mode = isM3MultiPacket(packetStartCode);
              // 创建 MessageHeader 对象
-            MessageHeader messageHeader = MessageHeader.builder()
+                MessageHeader messageHeader = MessageHeader.builder()
                 .startFrame(new byte[]{firstByte, secondByte})  // 帧头
                 .stationId(keyStation & 0xFF)  // 中心站地址
                 .telemetryId(String.format("%02X%02X%02X%02X%02X", 
@@ -131,8 +126,8 @@ public class SL651Decoder extends ByteToMessageDecoder {
                 .isM3Mode(isM3Mode)  // 报文上行标识
                 .packetStartCode(MessageStartCharacter[0] & 0xFF)  // 报文起始符
                 .build();
-            
-            
+
+            TestReport testReport =null;
             //开始处理报文的正文 （测试报）
             if ((functionCode[0] & 0xFF) == 0x30) {
                 log.info("收到测试报，功能码: 0x30");
@@ -203,7 +198,7 @@ public class SL651Decoder extends ByteToMessageDecoder {
 
 
                 // 创建测试报实体
-                TestReport testReport = TestReport.builder()
+                testReport = TestReport.builder()
                         .serialNo(serialNo)  // 流水号
                         .sendTime(sendTime)  // 发报时间
                         .telemetryAddr(telemetryAddr)  // 遥测站地址
@@ -219,11 +214,10 @@ public class SL651Decoder extends ByteToMessageDecoder {
                         .voltageAmount(voltageAmount)  // 电压值
                         .build();
 
-                log.info("解析的测试报数据");
-                log.info("解析的测试报数据: {}", testReport);
 
-                // 将测试报实体添加到输出列表
-                list.add(testReport);
+
+
+
 
 
             } else {
@@ -232,29 +226,32 @@ public class SL651Decoder extends ByteToMessageDecoder {
             }
 
 
-            // // 读取消息体
-            // byte[] messageText = new byte[messageLength];
-            // byteBuf.readBytes(messageText);
 
-            // // 解析数据
-            // String hexData = bytesToHex(messageText);
-            // log.info("消息体长度: {}, 内容: {}", messageLength, hexData);
 
-            // 检查是否还有足够的数据读取结束符和校验码
-            if (byteBuf.readableBytes() < 3) { // 1字节结束符 + 2字节校验码
-                log.error("剩余数据不足以读取结束符和校验码");
-                byteBuf.resetReaderIndex();
-                return;
-            }
 
-            //报文结束符
-            byte endFlag = byteBuf.readByte();
-            log.info("结束符: 0x{}", String.format("%02X", endFlag & 0xFF));
 
-            //校验码
-            byte[] verifyCode = new byte[2];
-            byteBuf.readBytes(verifyCode);
-            log.info("校验码: 0x{}", bytesToHex(verifyCode));
+            //对其在封装
+
+//            //报文结束符
+//            byte endFlag = byteBuf.readByte();
+//            log.info("结束符: 0x{}", String.format("%02X", endFlag & 0xFF));
+//
+//            //校验码
+//            byte[] verifyCode = new byte[2];
+//            byteBuf.readBytes(verifyCode);
+//
+//            log.info("校验码: 0x{}", bytesToHex(verifyCode));
+
+
+
+            //将报文其他的结构添加到任务链条中
+//            list.add(messageHeader);
+            // 将测试报实体添加到输出列表
+            list.add(testReport);
+
+            ReferenceCountUtil.release(byteBuf);
+            ReferenceCountUtil.release(in);
+
 
         }  catch (Exception e) {
             log.error("解码过程中发生异常: ", e);
@@ -306,5 +303,8 @@ public class SL651Decoder extends ByteToMessageDecoder {
     }
 
 
-
+    @Override
+    public int getFuncCode() {
+        return FunctionCode.TEST_FUNCTION_CODE.getCode();
+    }
 }

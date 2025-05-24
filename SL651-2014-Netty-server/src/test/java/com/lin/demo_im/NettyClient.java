@@ -67,7 +67,7 @@ public class NettyClient {
 
     public static void main(String[] args) throws Exception {
         String host = "127.0.0.1";
-        int port = 8088;
+        int port = 9000;
         new NettyClient(host, port).run();
 
     }

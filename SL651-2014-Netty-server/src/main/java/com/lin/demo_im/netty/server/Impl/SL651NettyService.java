@@ -21,7 +21,7 @@ public class SL651NettyService implements ImServer {
     /**
      * netty服务监听端口
      */
-    @Value("${netty.port:8088}")
+    @Value("${netty.port:9000}")
     private int port;
     /**
      * 主线程组数量

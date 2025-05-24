@@ -66,11 +66,12 @@ public class NettyServerHandler extends SimpleChannelInboundHandler<String> {
 
     }
 
+
     //移除通讯通道
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        log.info(ctx.channel().id().asLongText() + "断开连接"); // 可以添加日志
         clients.remove(ctx.channel());
-        new ServerSocket().accept();
     }
 
 
